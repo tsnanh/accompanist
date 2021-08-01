@@ -130,6 +130,8 @@ object PagerDefaults {
  * @param dragEnabled toggle manual scrolling, when `false` the user can not drag the view to a
  * different page.
  * @param flingBehavior logic describing fling behavior.
+ * @param selectedOnTop brings selected page on top each others. When this param is set to true,
+ * [reverseLayout] param has no effect
  * @param content a block which describes the content. Inside this block you can reference
  * [PagerScope.currentPage] and other properties in [PagerScope].
  */
@@ -144,6 +146,7 @@ fun HorizontalPager(
     flingBehavior: FlingBehavior = PagerDefaults.defaultPagerFlingConfig(state),
     verticalAlignment: Alignment.Vertical = Alignment.CenterVertically,
     horizontalAlignment: Alignment.Horizontal = Alignment.CenterHorizontally,
+    selectedOnTop: Boolean = false,
     content: @Composable PagerScope.(page: Int) -> Unit,
 ) {
     Pager(
@@ -156,6 +159,7 @@ fun HorizontalPager(
         horizontalAlignment = horizontalAlignment,
         dragEnabled = dragEnabled,
         flingBehavior = flingBehavior,
+        selectedOnTop = selectedOnTop,
         content = content
     )
 }
@@ -174,6 +178,8 @@ fun HorizontalPager(
  * @param dragEnabled toggle manual scrolling, when `false` the user can not drag the view to a
  * different page.
  * @param flingBehavior logic describing fling behavior.
+ * @param selectedOnTop brings selected page on top each others. When this param is set to true,
+ * [reverseLayout] param has no effect
  * @param content a block which describes the content. Inside this block you can reference
  * [PagerScope.currentPage] and other properties in [PagerScope].
  */
@@ -188,6 +194,7 @@ fun VerticalPager(
     flingBehavior: FlingBehavior = PagerDefaults.defaultPagerFlingConfig(state),
     verticalAlignment: Alignment.Vertical = Alignment.CenterVertically,
     horizontalAlignment: Alignment.Horizontal = Alignment.CenterHorizontally,
+    selectedOnTop: Boolean = false,
     content: @Composable PagerScope.(page: Int) -> Unit,
 ) {
     Pager(
@@ -200,6 +207,7 @@ fun VerticalPager(
         horizontalAlignment = horizontalAlignment,
         dragEnabled = dragEnabled,
         flingBehavior = flingBehavior,
+        selectedOnTop = selectedOnTop,
         content = content
     )
 }
@@ -216,6 +224,7 @@ internal fun Pager(
     horizontalAlignment: Alignment.Horizontal,
     dragEnabled: Boolean,
     flingBehavior: FlingBehavior,
+    selectedOnTop: Boolean = false,
     content: @Composable PagerScope.(page: Int) -> Unit,
 ) {
     // True if the scroll direction is RTL, false for LTR
@@ -351,10 +360,18 @@ internal fun Pager(
                 // We can't rely on placeRelative() since that only uses the LayoutDirection, and
                 // we need to cater for our reverseLayout param too. reverseDirection contains
                 // the resolved direction, so we use that to flip the offset direction...
-                placeable.place(
-                    x = xCenterOffset + if (reverseDirection) -xItemOffset else xItemOffset,
-                    y = yCenterOffset + if (reverseDirection) -yItemOffset else yItemOffset,
-                )
+                if (selectedOnTop) {
+                    placeable.placeRelative(
+                        x = xCenterOffset + xItemOffset,
+                        y = yCenterOffset + yItemOffset,
+                        zIndex = if (state.currentLayoutPage == index) 10F else 0F
+                    )
+                } else {
+                    placeable.place(
+                        x = xCenterOffset + if (reverseDirection) -xItemOffset else xItemOffset,
+                        y = yCenterOffset + if (reverseDirection) -yItemOffset else yItemOffset,
+                    )
+                }
             }
         }
     }
