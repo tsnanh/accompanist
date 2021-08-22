@@ -17,12 +17,8 @@
 package com.google.accompanist.pager
 
 import androidx.compose.ui.test.SemanticsNodeInteraction
-import androidx.compose.ui.test.assertIsNotSelected
-import androidx.compose.ui.test.assertIsSelectable
-import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
-import androidx.compose.ui.test.onParent
 import androidx.compose.ui.test.performScrollTo
 import com.google.common.truth.Truth.assertThat
 import kotlinx.coroutines.CoroutineScope
@@ -57,6 +53,19 @@ abstract class PagerTest {
     @Test
     fun layout() {
         val pagerState = setPagerContent(pageCount = 10)
+        assertPagerLayout(0, pagerState.pageCount)
+    }
+
+    @Test
+    fun layout_initialEmpty() {
+        // Initially lay out with a count of 0
+        val pagerState = setPagerContent(pageCount = 0)
+        assertPagerLayout(0, pagerState.pageCount)
+
+        // Now update to have a count of 10 and assert the layout.
+        // This models a count which is driven by dynamic data
+        pagerState.pageCount = 10
+        composeTestRule.waitForIdle()
         assertPagerLayout(0, pagerState.pageCount)
     }
 
@@ -186,7 +195,12 @@ abstract class PagerTest {
 
     @Test
     fun mediumDistance_fastSwipe_toFling() {
+        composeTestRule.mainClock.autoAdvance = false
+
         val pagerState = setPagerContent(pageCount = 10)
+
+        assertThat(pagerState.isScrollInProgress).isFalse()
+        assertThat(pagerState.targetPage).isEqualTo(0)
 
         // Now swipe towards start, from page 0 to page 1, over a medium distance of the item width.
         // This should trigger a fling()
@@ -195,13 +209,24 @@ abstract class PagerTest {
                 distancePercentage = -MediumSwipeDistance,
                 velocity = FastVelocity,
             )
+
+        assertThat(pagerState.isScrollInProgress).isTrue()
+        assertThat(pagerState.targetPage).isEqualTo(1)
+
+        // Now re-enable the clock advancement and let the fling animation run
+        composeTestRule.mainClock.autoAdvance = true
         // ...and assert that we now laid out from page 1
         assertPagerLayout(1, pagerState.pageCount)
     }
 
     @Test
     fun mediumDistance_slowSwipe_toSnapForward() {
+        composeTestRule.mainClock.autoAdvance = false
+
         val pagerState = setPagerContent(pageCount = 10)
+
+        assertThat(pagerState.isScrollInProgress).isFalse()
+        assertThat(pagerState.targetPage).isEqualTo(0)
 
         // Now swipe towards start, from page 0 to page 1, over a medium distance of the item width.
         // This should trigger a spring to position 1
@@ -210,13 +235,24 @@ abstract class PagerTest {
                 distancePercentage = -MediumSwipeDistance,
                 velocity = SlowVelocity,
             )
+
+        assertThat(pagerState.isScrollInProgress).isTrue()
+        assertThat(pagerState.targetPage).isEqualTo(1)
+
+        // Now re-enable the clock advancement and let the snap animation run
+        composeTestRule.mainClock.autoAdvance = true
         // ...and assert that we now laid out from page 1
         assertPagerLayout(1, pagerState.pageCount)
     }
 
     @Test
     fun shortDistance_fastSwipe_toFling() {
+        composeTestRule.mainClock.autoAdvance = false
+
         val pagerState = setPagerContent(pageCount = 10)
+
+        assertThat(pagerState.isScrollInProgress).isFalse()
+        assertThat(pagerState.targetPage).isEqualTo(0)
 
         // Now swipe towards start, from page 0 to page 1, over a short distance of the item width.
         // This should trigger a fling to page 1
@@ -225,13 +261,24 @@ abstract class PagerTest {
                 distancePercentage = -ShortSwipeDistance,
                 velocity = FastVelocity,
             )
+
+        assertThat(pagerState.isScrollInProgress).isTrue()
+        assertThat(pagerState.targetPage).isEqualTo(1)
+
+        // Now re-enable the clock advancement and let the fling animation run
+        composeTestRule.mainClock.autoAdvance = true
         // ...and assert that we now laid out from page 1
         assertPagerLayout(1, pagerState.pageCount)
     }
 
     @Test
     fun shortDistance_slowSwipe_toSnapBack() {
+        composeTestRule.mainClock.autoAdvance = false
+
         val pagerState = setPagerContent(pageCount = 10)
+
+        assertThat(pagerState.isScrollInProgress).isFalse()
+        assertThat(pagerState.targetPage).isEqualTo(0)
 
         // Now swipe towards start, from page 0 to page 1, over a short distance of the item width.
         // This should trigger a spring back to the original position
@@ -240,6 +287,12 @@ abstract class PagerTest {
                 distancePercentage = -ShortSwipeDistance,
                 velocity = SlowVelocity,
             )
+
+        assertThat(pagerState.isScrollInProgress).isTrue()
+        assertThat(pagerState.targetPage).isEqualTo(0)
+
+        // Now re-enable the clock advancement and let the snap animation run
+        composeTestRule.mainClock.autoAdvance = true
         // ...and assert that we 'sprang back' to page 0
         assertPagerLayout(0, pagerState.pageCount)
     }
@@ -340,10 +393,6 @@ abstract class PagerTest {
                 composeTestRule.onNodeWithTag(page.toString())
                     .assertExists()
                     .assertLaidOutItemPosition(page, currentPage)
-                    .onParent()
-                    .assertIsSelectable()
-                    .assertWhen(page == currentPage) { assertIsSelected() }
-                    .assertWhen(page != currentPage) { assertIsNotSelected() }
             } else {
                 // If this page is not expected to be laid out, assert that it doesn't exist
                 composeTestRule.onNodeWithTag(_page.toString()).assertDoesNotExist()

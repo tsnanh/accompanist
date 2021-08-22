@@ -31,6 +31,8 @@ import androidx.compose.animation.core.spring
 import androidx.compose.foundation.MutatePriority
 import androidx.compose.foundation.gestures.ScrollScope
 import androidx.compose.foundation.gestures.ScrollableState
+import androidx.compose.foundation.interaction.InteractionSource
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
@@ -150,7 +152,7 @@ class PagerState(
      * The page which is currently laid out.
      */
     internal inline val currentLayoutPage: Int
-        get() = currentLayoutPageInfo.page!!
+        get() = currentLayoutPageInfo.page ?: 0
 
     internal inline val currentLayoutPageInfo: PageLayoutInfo
         get() = layoutPages[currentLayoutPageIndex]
@@ -183,6 +185,16 @@ class PagerState(
         -scrollByOffset(-deltaPixels / size) * size
     }
 
+    /**
+     * [InteractionSource] that will be used to dispatch drag events when this
+     * list is being dragged. If you want to know whether the fling (or animated scroll) is in
+     * progress, use [isScrollInProgress].
+     */
+    val interactionSource: InteractionSource
+        get() = internalInteractionSource
+
+    internal val internalInteractionSource: MutableInteractionSource = MutableInteractionSource()
+
     init {
         require(offscreenLimit >= 1) { "offscreenLimit is required to be >= 1" }
         require(pageCount >= 0) { "pageCount must be >= 0" }
@@ -200,8 +212,14 @@ class PagerState(
         get() = _pageCount
         set(@IntRange(from = 0) value) {
             require(value >= 0) { "pageCount must be >= 0" }
-            _pageCount = value
-            currentPage = currentPage.coerceIn(firstPageIndex, lastPageIndex)
+            if (value != _pageCount) {
+                _pageCount = value
+                if (DebugLog) {
+                    Napier.d(message = "Page count changed: $value")
+                }
+                currentPage = currentPage.coerceIn(firstPageIndex, lastPageIndex)
+                updateLayoutPages(currentPage)
+            }
         }
 
     /**
@@ -221,7 +239,7 @@ class PagerState(
                     Napier.d(message = "Current page changed: $_currentPage")
                 }
                 // If the current page is changed, update the layout page too
-                updateLayoutPages(_currentPage)
+                updateLayoutPages(moddedValue)
             }
         }
 
@@ -240,12 +258,14 @@ class PagerState(
 
     /**
      * The target page for any on-going animations or scrolls by the user.
-     * Returns null if a scroll or animation is not currently in progress.
+     * Returns the current page if a scroll or animation is not currently in progress.
      */
-    val targetPage: Int?
+    val targetPage: Int
         get() = _animationTargetPage ?: when {
-            // If a scroll isn't in progress, return null
-            !isScrollInProgress -> null
+            // If a scroll isn't in progress, return the current page
+            !isScrollInProgress -> currentPage
+            // If the offset is 0f (or very close), return the current page
+            currentPageOffset < 0.001f -> currentPage
             // If we're offset towards the start, guess the previous page
             currentPageOffset < 0 -> (currentPage - 1).coerceAtLeast(0)
             // If we're offset towards the end, guess the next page
